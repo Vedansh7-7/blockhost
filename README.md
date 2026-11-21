@@ -57,7 +57,7 @@ Copying the world folder around by hand works until two people play different co
 ## Quick start
 
 **Friends (joining a group)**
-1. Download BlockHost for your system from **Releases**.
+1. Download from **[Releases](https://github.com/Vedansh7-7/blockhost/releases/latest)**: `BlockHost-Windows.exe`, `BlockHost-macOS-Apple-Silicon.zip` (M1–M4 Macs) or `BlockHost-macOS-Intel.zip` (older Macs).
    - **Windows:** if SmartScreen warns you, click *More info → Run anyway*.
    - **macOS:** right-click the app → *Open* → *Open* (only the first time).
 2. Click **JOIN GROUP**, pick the `.bhgroup` file the group owner sent you, and type the group password.

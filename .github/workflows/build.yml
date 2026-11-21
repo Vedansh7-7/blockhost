@@ -40,10 +40,13 @@ jobs:
         include:
           - os: windows-latest
             label: windows
+            asset: BlockHost-Windows.exe
           - os: macos-15
             label: macos-apple-silicon
+            asset: BlockHost-macOS-Apple-Silicon.zip
           - os: macos-15-intel
             label: macos-intel
+            asset: BlockHost-macOS-Intel.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +59,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --name BlockHost --icon app/icon.ico --add-data "app/ui;ui" --paths app app/main.py
-          Copy-Item dist/BlockHost.exe BlockHost-windows.exe
+          Copy-Item dist/BlockHost.exe "${{ matrix.asset }}"
 
       - name: Build macOS app
         if: runner.os == 'macOS'
@@ -66,14 +69,12 @@ jobs:
             --add-data "app/ui:ui" --paths app app/main.py
           # smoke test: the bundled binary must start and import everything
           test -x dist/BlockHost.app/Contents/MacOS/BlockHost
-          ditto -c -k --keepParent dist/BlockHost.app "BlockHost-${{ matrix.label }}.zip"
+          ditto -c -k --keepParent dist/BlockHost.app "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: BlockHost-${{ matrix.label }}
-          path: |
-            BlockHost-windows.exe
-            BlockHost-macos-*.zip
+          path: ${{ matrix.asset }}
           if-no-files-found: error
 
   release:
@@ -87,6 +88,20 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          name: BlockHost ${{ github.ref_name }}
+          body: |
+            ## Download for your computer
+            | Your computer | File |
+            |---|---|
+            | **Windows** 10 / 11 | `BlockHost-Windows.exe` |
+            | **Mac** with Apple chip (M1, M2, M3, M4) | `BlockHost-macOS-Apple-Silicon.zip` |
+            | **Mac** with Intel chip (older Macs) | `BlockHost-macOS-Intel.zip` |
+
+            Not sure which Mac you have? Apple menu → **About This Mac** → look for "Chip: Apple M…" or "Processor: Intel".
+
+            **First launch:** Windows → *More info → Run anyway*. Mac → unzip, right-click BlockHost → *Open* → *Open*.
+            Then **JOIN GROUP** with the `.bhgroup` file and password from your group owner. Changes: see CHANGELOG.md.
           files: |
-            BlockHost-windows.exe
-            BlockHost-macos-*.zip
+            BlockHost-Windows.exe
+            BlockHost-macOS-Apple-Silicon.zip
+            BlockHost-macOS-Intel.zip
