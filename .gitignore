@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build output
+build/
+dist/
+*.spec
+
+# Never commit group files, world saves or local data
+*.bhgroup
+*.bhw
+group.cache
+group.dpapi
+.localkey
+
+# Deploy tool state
+.vercel/
+.netlify/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Google OAuth credentials
+client_secret*.json
+credentials*.json

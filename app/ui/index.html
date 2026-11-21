@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BlockHost</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <canvas id="logoCube" width="16" height="16" aria-hidden="true"></canvas>
+  <h1>BLOCKHOST</h1>
+  <span id="groupName" class="group-tag"></span>
+  <div class="spacer"></div>
+  <button class="btn btn-icon" id="btnSettings" title="Settings" hidden>OPTIONS</button>
+  <button class="btn btn-icon" id="btnQuit" title="Quit safely">QUIT</button>
+</header>
+
+<!-- ================= SETUP ================= -->
+<main id="setup" class="screen" hidden>
+  <section class="slab setup-pick" id="setupPick">
+    <h2>WELCOME</h2>
+    <p>This laptop isn't part of a server group yet.</p>
+    <div class="row">
+      <button class="btn btn-green big" id="goJoin">JOIN GROUP</button>
+      <button class="btn big" id="goCreate">CREATE GROUP</button>
+    </div>
+    <p class="hint">Friends: choose <b>Join</b> and pick the <code>.bhgroup</code> file you were sent.<br>
+      Owner: choose <b>Create</b> once, to set up Google Drive storage.</p>
+  </section>
+
+  <section class="slab" id="setupJoin" hidden>
+    <h2>JOIN GROUP</h2>
+    <label>Group file
+      <span class="file-row"><input id="joinPath" readonly placeholder="No file chosen"><button class="btn" id="joinBrowse">BROWSE</button></span>
+    </label>
+    <label>Group password <input id="joinPass" type="password" autocomplete="off"></label>
+    <p class="err" id="joinErr"></p>
+    <div class="row"><button class="btn" data-back>BACK</button><button class="btn btn-green" id="joinGo">JOIN</button></div>
+  </section>
+
+  <section class="slab" id="setupCreate" hidden>
+    <h2>CREATE GROUP</h2>
+    <p class="hint">Needs a Google Cloud OAuth "Desktop app" client. Steps are in OWNER-SETUP.txt.</p>
+    <label>Group name <input id="cName" value="Our World" maxlength="30"></label>
+    <label>OAuth Client ID <input id="cId" autocomplete="off"></label>
+    <label>OAuth Client secret <input id="cSecret" type="password" autocomplete="off"></label>
+    <label>Minecraft version <input id="cVer" value="26.3"></label>
+    <label>Group password (share with friends) <input id="cPass" type="password" autocomplete="off"></label>
+    <label class="check"><input id="cOnline" type="checkbox" checked> Require official Minecraft accounts (online mode)</label>
+    <p class="hint">Untick only if friends use non-official launchers. Then anyone on your Wi-Fi can join under any name.</p>
+    <p class="err" id="createErr"></p>
+    <div class="row"><button class="btn" data-back>BACK</button><button class="btn btn-green" id="createGo">SIGN IN &amp; CREATE</button></div>
+  </section>
+</main>
+
+<!-- ================= MAIN ================= -->
+<main id="main" class="screen grid" hidden>
+  <section class="slab status">
+    <div class="status-head">
+      <span id="lamp" class="lamp lamp-off"></span>
+      <div>
+        <div id="stateTitle" class="state-title">CHECKING...</div>
+        <div id="stateSub" class="state-sub"></div>
+      </div>
+    </div>
+
+    <div id="joinBox" class="join-box" hidden>
+      <div class="label">JOIN ADDRESS</div>
+      <div id="ipList"></div>
+      <div class="hint">Multiplayer &gt; Add Server. Same Wi-Fi only.</div>
+    </div>
+
+    <dl class="facts">
+      <dt>WORLD</dt><dd id="fWorld">-</dd>
+      <dt>LAST SAVE</dt><dd id="fSaved">-</dd>
+      <dt>VERSION</dt><dd id="fVer">-</dd>
+      <dt>PLAYERS</dt><dd id="fPlayers">-</dd>
+      <dt>HEARTBEAT</dt><dd id="fBeat">-</dd>
+    </dl>
+
+    <div class="progress" id="progress" hidden><div class="bar" id="progressBar"></div><span id="progressText"></span></div>
+
+    <div class="actions">
+      <button class="btn btn-green big" id="btnStart">START HOSTING</button>
+      <button class="btn btn-red big" id="btnStop" hidden>STOP &amp; SAVE</button>
+      <button class="btn" id="btnSave" hidden>SAVE NOW</button>
+      <button class="btn btn-red" id="btnRetry" hidden>RETRY SAVE</button>
+    </div>
+  </section>
+
+  <section class="slab console-wrap">
+    <div class="console-head"><span>CONSOLE</span><span id="busyText" class="busy"></span></div>
+    <div id="console" class="console" role="log" aria-live="polite"></div>
+    <form id="cmdForm" class="cmd" hidden>
+      <span>&gt;</span><input id="cmdInput" placeholder="server command, e.g. time set day" autocomplete="off">
+    </form>
+  </section>
+</main>
+
+<!-- ================= MODALS ================= -->
+<div class="modal-back" id="modal" hidden>
+  <div class="slab modal" role="dialog" aria-modal="true">
+    <h2 id="mTitle"></h2>
+    <div id="mBody"></div>
+    <div class="row" id="mButtons"></div>
+  </div>
+</div>
+
+<div class="modal-back" id="settingsModal" hidden>
+  <div class="slab modal" role="dialog" aria-modal="true">
+    <h2>SETTINGS</h2>
+    <label>Server memory (GB) <input id="sRam" type="number" min="1" max="16"></label>
+    <label>Auto-save to Drive every (minutes) <input id="sAuto" type="number" min="5" max="120"></label>
+    <div class="row"><button class="btn btn-green" id="sSave">SAVE SETTINGS</button></div>
+    <hr>
+    <p class="hint">Group-wide (only while nobody hosts):</p>
+    <label>Minecraft version <span class="file-row"><input id="sVer"><button class="btn" id="sVerGo">SET</button></span></label>
+    <div class="row">
+      <button class="btn" id="sRestore">RESTORE PREVIOUS SAVE</button>
+      <button class="btn" id="sFolder">OPEN LOCAL FOLDER</button>
+    </div>
+    <div class="row">
+      <button class="btn btn-red" id="sLeave">LEAVE GROUP ON THIS LAPTOP</button>
+      <button class="btn" id="sClose">CLOSE</button>
+    </div>
+    <p class="err" id="sErr"></p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+name: Test & build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # only used to attach files to a release on version tags
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - run: python -m pip install -r requirements.txt
+      - name: Logic + end-to-end tests (real Minecraft server, fake Drive)
+        run: python -u tests/test_logic.py --e2e
+
+  build:
+    name: Build (${{ matrix.label }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+          - os: macos-15
+            label: macos-apple-silicon
+          - os: macos-15-intel
+            label: macos-intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -r requirements-build.txt
+
+      - name: Build Windows exe
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name BlockHost --icon app/icon.ico --add-data "app/ui;ui" --paths app app/main.py
+          Copy-Item dist/BlockHost.exe BlockHost-windows.exe
+
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name BlockHost --icon app/icon.ico \
+            --osx-bundle-identifier io.github.blockhost.launcher \
+            --add-data "app/ui:ui" --paths app app/main.py
+          # smoke test: the bundled binary must start and import everything
+          test -x dist/BlockHost.app/Contents/MacOS/BlockHost
+          ditto -c -k --keepParent dist/BlockHost.app "BlockHost-${{ matrix.label }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockHost-${{ matrix.label }}
+          path: |
+            BlockHost-windows.exe
+            BlockHost-macos-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Attach to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            BlockHost-windows.exe
+            BlockHost-macos-*.zip

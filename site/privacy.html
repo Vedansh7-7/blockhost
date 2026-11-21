@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlockHost Privacy</title>
+<style>
+  :root { --bg:#1b140e; --panel:#565659; --ink:#f2ead8; --dim:#c9bfa9; --grass:#86c24c; --gold:#e6b53a; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:18px/1.6 ui-monospace, Consolas, monospace; }
+  header { border-top:12px solid var(--grass); padding:28px 16px 8px; max-width:720px; margin:auto; }
+  h1 { margin:0; letter-spacing:2px; }
+  main { max-width:720px; margin:auto; padding:0 16px 48px; }
+  section { background:var(--panel); border:4px solid #000; box-shadow:inset 4px 4px 0 #8f8f94, inset -4px -4px 0 #2e2e30; padding:18px 20px; margin:18px 0; }
+  h2 { color:var(--gold); font-size:18px; margin:0 0 8px; }
+  a { color:var(--grass); }
+  p, li { margin:0 0 10px; }
+</style>
+</head>
+<body>
+<header><h1>PRIVACY POLICY</h1><p style="color:var(--dim)">BlockHost. Last updated 21 November 2026.</p></header>
+<main>
+  <section>
+    <h2>What data BlockHost accesses</h2>
+    <p>With the group owner's permission, BlockHost uses the Google Drive <code>drive.file</code> scope. This gives it access
+       <b>only to files BlockHost itself creates</b>: one folder containing</p>
+    <ul>
+      <li>a status file (whether the server is running, which laptop is hosting, its local network address, online player names), and</li>
+      <li>up to two encrypted Minecraft world saves.</li>
+    </ul>
+    <p>BlockHost cannot read, change or delete any other file in your Google Drive.</p>
+  </section>
+  <section>
+    <h2>Where data goes</h2>
+    <p>Data moves only between the group members' own computers and the owner's Google Drive. BlockHost has no server of its own,
+       uses no analytics or tracking, shows no ads, and never sells or shares data with anyone.</p>
+    <p>World saves are encrypted (AES-256) before upload. Only BlockHost, with the group's password, can decrypt them.</p>
+  </section>
+  <section>
+    <h2>Google API data</h2>
+    <p>BlockHost's use of information received from Google APIs adheres to the
+       <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+       including the Limited Use requirements.</p>
+  </section>
+  <section>
+    <h2>Removing access</h2>
+    <p>The owner can revoke BlockHost at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>,
+       and delete the "BlockHost" folder from Google Drive to remove all stored data.</p>
+    <p><a href="index.html">Back to home</a></p>
+  </section>
+</main>
+</body>
+</html>
