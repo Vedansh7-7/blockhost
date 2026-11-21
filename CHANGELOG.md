@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-21)
 - macOS support (Apple Silicon and Intel builds via CI)
 - Minecraft EULA prompt before the first start
 - Per-group "online mode" option (on by default for new groups)
