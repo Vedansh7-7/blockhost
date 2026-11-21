@@ -1,48 +1,53 @@
-BLOCKHOST - ONE-TIME OWNER SETUP  (about 10 minutes, free)
-==========================================================
+# Owner setup (one time, ~15 minutes, free)
 
-Only the owner does this, once. Friends never touch Google Cloud.
+Only the group **owner** does this. Friends only need the app, the `.bhgroup` file and the password.
 
-A. MAKE A GOOGLE CLOUD "DESKTOP APP" LOGIN (free, no credit card)
-  1. Go to https://console.cloud.google.com/ and sign in with the Google
-     account whose Drive will store the world.
-  2. Top bar > project picker > NEW PROJECT. Name it "BlockHost". Create.
-  3. Search bar: "Google Drive API" > open it > ENABLE.
-  4. Left menu: APIs & Services > OAuth consent screen (may be called "Google Auth Platform").
-       - App name: BlockHost. User support + developer email: your own.
-       - Audience / User type: External.
-       - Data access / Scopes: add  .../auth/drive.file
-         (this lets the app see ONLY files it creates, nothing else in your Drive)
-       - Audience: press PUBLISH APP (switch to "In production").
-         IMPORTANT: if you leave it in "Testing", Google expires the login
-         after 7 days and hosting stops working.
-         Google will NOT ask for verification, because drive.file is a basic scope.
-  5. Clients (or Credentials) > CREATE CLIENT / CREATE CREDENTIALS > OAuth client ID
-       - Application type: Desktop app. Name: BlockHost. Create.
-       - Copy the Client ID and Client secret.
+## 1. Google Cloud project
+1. Open <https://console.cloud.google.com/> with the Google account whose Drive will store the world.
+2. Project picker → **New project** → name it `BlockHost` → **Create**.
+3. Search **Google Drive API** → **Enable**.
 
-B. CREATE THE GROUP
-  1. Open BlockHost.exe > CREATE GROUP.
-  2. Paste the Client ID and Client secret, choose a group name, the Minecraft
-     version (26.3), and a group password (8+ characters).
-  3. Press SIGN IN & CREATE. A browser tab opens. Sign in, and if Google shows
-     "Google hasn't verified this app", click Advanced > Go to BlockHost.
-     (It's your own app. That warning is normal for personal projects.)
-  4. Save the .bhgroup file it offers.
+## 2. Homepage and privacy policy (Google requires them to publish)
+Google won't let you publish the app without a homepage URL and a privacy-policy URL.
+The [`site/`](../site) folder has both pages, ready to use. Deploy that folder to any free static host:
 
-C. SHARE WITH FRIENDS
-  - Send them BlockHost.exe and the .bhgroup file (e.g. in a Drive folder).
-  - Send the group password SEPARATELY (e.g. by message).
-  - They open BlockHost.exe > JOIN GROUP > pick the file > type the password.
-  - The first time someone hosts, Windows asks for admin permission once (firewall),
-    and BlockHost offers to install Java if it's missing.
+| Host | Command / steps |
+|---|---|
+| Vercel | `cd site && vercel deploy --prod` |
+| Netlify | drag the `site` folder onto <https://app.netlify.com/drop> |
+| GitHub Pages | push `site/` to a public repo → Settings → Pages |
 
-SECURITY NOTES
-  - The world in Drive is encrypted (AES-256). Only BlockHost with the group
-    file + password can open it. A leaked Drive link alone is useless.
-  - The .bhgroup file is also encrypted with the password.
-  - Anyone with the file AND the password can host and change the world.
-    If someone leaves the group: create a new group and resend.
-  - To revoke everything: https://myaccount.google.com/permissions > BlockHost > Remove access.
-  - In Drive you'll see a folder "BlockHost - <name>" with state.json and up to two
-    world-*.bhw files. Don't edit them by hand.
+You'll get something like `https://your-name.vercel.app` and `https://your-name.vercel.app/privacy.html`.
+
+## 3. OAuth consent screen (Google Auth Platform)
+1. **Branding**:
+   - App name: `BlockHost`
+   - Support email: yours
+   - **Application home page** and **Application privacy policy link**: your two URLs from step 2
+   - **Authorized domains**: your host's domain, e.g. `your-name.vercel.app`
+2. **Audience**: External.
+3. **Data access**: add the scope `.../auth/drive.file`.
+4. **Audience** → **Publish app** → confirm. The status must say **In production**.
+
+> ⚠️ If the app stays in **Testing**, Google expires the login after **7 days** and hosting stops working.
+> You do **not** need Google's verification: `drive.file` is a non-sensitive scope.
+
+## 4. OAuth client
+**Clients** → **Create client** → type **Desktop app** → name `BlockHost` → **Create**.
+Copy the **Client ID** and **Client secret**. Keep them private and never commit them; the repo already ignores `client_secret*.json`.
+
+## 5. Create the group
+1. Open BlockHost → **CREATE GROUP**.
+2. Paste the Client ID and secret, then set a group name, the Minecraft version and a group password (8+ characters).
+   - Leave **online mode** ticked if everyone has an official Minecraft account.
+3. **SIGN IN & CREATE**. When Google warns *"Google hasn't verified this app"*: **Advanced → Go to BlockHost**. It's your own app.
+4. Save the `.bhgroup` file.
+
+## 6. Invite friends
+- Send them **BlockHost** (from Releases) and the **`.bhgroup` file**.
+- Send the **password separately**, for example as a different message.
+- They click **JOIN GROUP**, pick the file and enter the password.
+
+## Revoking access
+- Remove a member: create a new group and share it only with the people who should stay.
+- Remove everything: <https://myaccount.google.com/permissions> → BlockHost → *Remove access*, then delete the `BlockHost - …` folder in Drive.

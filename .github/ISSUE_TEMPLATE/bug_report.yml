@@ -1,0 +1,29 @@
+name: Bug report
+description: Something went wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 11, Windows 10, macOS (Apple Silicon), macOS (Intel), Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: BlockHost version and Minecraft version
+      placeholder: e.g. 0.2.0 / 26.3
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Paste the end of `launcher.log` (OPTIONS → OPEN LOCAL FOLDER). Remove anything private.
+      render: text
