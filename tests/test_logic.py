@@ -212,9 +212,7 @@ if "--e2e" in sys.argv:
         _prep(motd, online_mode)
         props = os.path.join(config.SERVER_DIR, "server.properties")
         lines = [l for l in open(props, encoding="utf-8").read().splitlines() if not l.startswith("server-port=")]
-        open(props, "w", encoding="utf-8").write("
-".join(lines + ["server-port=25599"]) + "
-")
+        open(props, "w", encoding="utf-8").write(chr(10).join(lines + ["server-port=25599"]) + chr(10))
     mcserver.prepare_files = prep_on_test_port
     settings = {"ram_gb": 2, "autosave_min": 20, "eula": True}
 
