@@ -11,6 +11,7 @@
   <h1>BLOCKHOST</h1>
   <span id="groupName" class="group-tag"></span>
   <div class="spacer"></div>
+  <button class="btn btn-icon" id="btnWorld" title="World settings" hidden>WORLD</button>
   <button class="btn btn-icon" id="btnSettings" title="Settings" hidden>OPTIONS</button>
   <button class="btn btn-icon" id="btnQuit" title="Quit safely">QUIT</button>
 </header>
@@ -124,6 +125,54 @@
       <button class="btn" id="sClose">CLOSE</button>
     </div>
     <p class="err" id="sErr"></p>
+  </div>
+</div>
+
+<div class="modal-back" id="worldModal" hidden>
+  <div class="slab modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="wTitle">
+    <h2 id="wTitle">WORLD</h2>
+    <p class="hint" id="wLocked" hidden>Someone is hosting. You can look, but changes only work while the server is idle.</p>
+    <p class="hint">Current seed: <code id="wSeed">unknown (host once to see it)</code></p>
+
+    <h3>GAMEPLAY</h3>
+    <div class="form-grid">
+      <label>Difficulty
+        <select id="wDifficulty"><option>peaceful</option><option>easy</option><option>normal</option><option>hard</option></select></label>
+      <label>Default game mode
+        <select id="wGamemode"><option>survival</option><option>creative</option><option>adventure</option><option>spectator</option></select></label>
+    </div>
+    <label class="check"><input id="wPvp" type="checkbox"> Players can hurt each other (PvP)</label>
+    <label class="check"><input id="wKeepInv" type="checkbox"> Keep items after dying</label>
+    <label class="check"><input id="wHardcore" type="checkbox"> Hardcore (one life). Only for NEW worlds.</label>
+
+    <h3>SERVER</h3>
+    <label>Name in the multiplayer list <input id="wMotd" maxlength="59"></label>
+    <div class="form-grid">
+      <label>Max players <input id="wMax" type="number" min="1" max="100"></label>
+      <label>Spawn protection (blocks) <input id="wSpawn" type="number" min="0" max="64"></label>
+      <label>View distance (chunks) <input id="wView" type="number" min="3" max="32"></label>
+    </div>
+    <label class="check"><input id="wWhitelist" type="checkbox"> Whitelist: only listed players can join</label>
+    <p class="hint">Add players while hosting: type <code>whitelist add Name</code> in the console.</p>
+    <div class="row"><button class="btn btn-green" id="wSave">SAVE SETTINGS</button></div>
+
+    <hr>
+    <h3>NEW WORLD</h3>
+    <div id="wPending" class="pending" hidden></div>
+    <div id="wNewForm">
+      <div class="form-grid">
+        <label>Seed (blank = random) <input id="wNewSeed" maxlength="64" placeholder="e.g. 8675309 or any word"></label>
+        <label>World type
+          <select id="wType"><option value="normal">Normal</option><option value="large_biomes">Large Biomes</option>
+            <option value="amplified">Amplified</option><option value="flat">Flat</option></select></label>
+      </div>
+      <p class="hint">The next person who hosts gets a fresh world. The current world is kept as the OLD WORLD, so you can switch back.</p>
+      <div class="row"><button class="btn btn-red" id="wNew">START NEW WORLD</button></div>
+    </div>
+    <div class="row" id="wArchiveRow" hidden><button class="btn" id="wArchive">SWITCH BACK TO OLD WORLD</button></div>
+
+    <p class="err" id="wErr" role="status"></p>
+    <div class="row"><button class="btn" id="wClose">CLOSE</button></div>
   </div>
 </div>
 

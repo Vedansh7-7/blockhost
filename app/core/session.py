@@ -10,6 +10,7 @@ Heartbeat = state.json's modifiedTime on Google's clock, refreshed every minute.
 """
 import os
 import platform
+import re
 import secrets
 import shutil
 import threading
@@ -43,6 +44,7 @@ class Session:
         self._upload_lock = threading.Lock()
         self._stop_evt = threading.Event()
         self._last_save = None
+        self._new_world = None  # set while hosting a freshly generated world until its first save
 
     # ---------------- helpers ----------------
     def log(self, msg, level="info"):
@@ -76,6 +78,10 @@ class Session:
             "world": cur and {"gen": cur.get("gen"), "saved_by": cur.get("saved_by"),
                               "age": int(now - cur.get("saved_at", now)), "size": cur.get("size")},
             "has_previous": bool((data.get("world") or {}).get("previous")),
+            "has_archive": bool((data.get("world") or {}).get("archive")),
+            "world_settings": mcserver.clean_world_settings(data.get("world_settings")),
+            "new_world": data.get("new_world"),
+            "seed": (data.get("world_info") or {}).get("seed"),
         }
 
     # ---------------- lock ----------------
@@ -171,13 +177,25 @@ class Session:
                         self.drive.delete(fid)
                         return False
                     world = data.get("world") or {}
-                    old_prev = world.get("previous")
                     entry = {"id": fid, "gen": self.model["gen"], "size": size, "saved_by": self.me,
                              "saved_at": self.drive.now()}
-                    self.model["world"] = {"current": entry, "previous": world.get("current")}
+                    if self._new_world is not None:
+                        # First save of a brand-new world: the old world becomes the "archive"
+                        # (kept until the next reset), and its previous save is dropped.
+                        old_cur, old_arch = world.get("current"), world.get("archive")
+                        self.model["world"] = {"current": entry, "previous": None,
+                                               "archive": old_cur or old_arch}
+                        self.model.pop("new_world", None)
+                        drop = [world.get("previous")] + ([old_arch] if old_cur else [])
+                        self._new_world = None
+                    else:
+                        self.model["world"] = {"current": entry, "previous": world.get("current"),
+                                               "archive": world.get("archive")}
+                        drop = [world.get("previous")]
                     self.drive.write_json(self.group["state_id"], self.model)
-                if old_prev and old_prev.get("id") != fid:
-                    self.drive.delete(old_prev["id"])
+                for old in drop:
+                    if old and old.get("id") != fid:
+                        self.drive.delete(old["id"])
                 self._last_save = time.time()
                 self.log(f"World saved to Drive ({label}, {size / 1e6:.1f} MB).", "ok")
                 self.emit("saved", {"at": self._last_save})
@@ -230,7 +248,7 @@ class Session:
                 self.emit("need_java", {"major": java_major})
                 raise RuntimeError(f"Java {java_major} is not installed.")
             online = bool(data.get("online_mode", False))  # groups created before this option were offline
-            mcserver.prepare_files(data.get("motd") or "BlockHost world", online)
+            mcserver.prepare_files(online, data.get("world_settings"))
             port = mcserver.server_port()
             if not mcserver.firewall_rule_exists(port):
                 self.log("Asking Windows to allow friends to connect (one-time admin prompt)...")
@@ -242,9 +260,21 @@ class Session:
                                (not cur or marker.get("gen", -1) >= cur.get("gen", -1)))
             # dirty=True means "the world on this laptop is newer than Drive"
             config.save_session({"nonce": self.model["nonce"], "gen": self.model["gen"], "dirty": local_newer})
+            nw = prev.get("new_world")
+            self._new_world = None
             if local_newer and os.path.isdir(os.path.join(config.SERVER_DIR, "world")):
                 self.log("Last session on this laptop didn't finish saving. Using the newer local world.", "warn")
+                if nw:
+                    self.log("The requested NEW WORLD will be created next time, after this one is saved.", "warn")
                 self.unsaved = True
+            elif nw:
+                if cur:
+                    self._download_world(cur)   # keeps ops, whitelist and bans from the old world
+                shutil.rmtree(os.path.join(config.SERVER_DIR, "world"), ignore_errors=True)
+                self._new_world = nw
+                seed = nw.get("seed") or "random"
+                self.log(f"Creating a NEW WORLD (seed: {seed}, type: {nw.get('level_type', 'normal')}). "
+                         "The old world stays safe in Drive until this one is saved.", "warn")
             elif cur:
                 self._download_world(cur)
             else:
@@ -253,7 +283,7 @@ class Session:
                     if os.path.isdir(p):
                         shutil.rmtree(p)
                 self.log("No world in Drive yet. A brand new world will be generated.")
-            mcserver.prepare_files(data.get("motd") or "BlockHost world", online)
+            mcserver.prepare_files(online, data.get("world_settings"), self._new_world)
 
             self.server = mcserver.Server(java, settings["ram_gb"], lambda l: self.emit("console", {"line": l}))
             self.server.start()
@@ -261,6 +291,12 @@ class Session:
             threading.Thread(target=self._heartbeat, daemon=True).start()
             self.log("Server is booting...")
             self.server.wait_ready()
+            for cmd in mcserver.live_commands(data.get("world_settings")):
+                self.server.send(cmd)
+            line = self.server.send_and_wait("seed", r"Seed: \[-?\d+\]", timeout=15)
+            m = re.search(r"Seed: \[(-?\d+)\]", line or "")
+            if m:
+                self.model["world_info"] = {"seed": m.group(1)}
             self.unsaved = True
             config.save_session({"nonce": self.model["nonce"], "gen": self.model["gen"], "dirty": True})
             self.set_phase("running")
@@ -359,24 +395,58 @@ class Session:
         except OSError:
             pass
 
-    # ---------------- maintenance ----------------
-    def restore_previous(self):
-        """Swap current and previous archive (only while nobody hosts)."""
+    # ---------------- maintenance (group-wide, only while nobody hosts) ----------------
+    def _edit_idle(self, what, change):
+        """Read state.json, refuse if someone is hosting, apply change(data), write back.
+        Hosts rewrite state.json every minute, so edits during a session would be lost."""
         data, mtime, now = self.read_state()
         if data.get("state") == "running" and now - mtime < config.STALE_SEC:
-            raise RuntimeError("Someone is hosting. Restore only while the server is idle.")
-        w = data.get("world") or {}
-        if not w.get("previous"):
-            raise RuntimeError("There is no previous world to restore.")
-        data["world"] = {"current": w["previous"], "previous": w.get("current")}
+            raise RuntimeError(f"Someone is hosting right now. {what} only while the server is idle.")
+        change(data)
         self.drive.write_json(self.group["state_id"], data)
-        self.log("Restored the previous world save. It will be used next time someone hosts.", "ok")
+        return data
+
+    def restore_previous(self):
+        """Swap current and previous save."""
+        def change(data):
+            w = data.get("world") or {}
+            if not w.get("previous"):
+                raise RuntimeError("There is no previous save to restore.")
+            data["world"] = {"current": w["previous"], "previous": w.get("current"), "archive": w.get("archive")}
+        self._edit_idle("Restore", change)
+        self.log("Restored the previous save. It will be used next time someone hosts.", "ok")
+
+    def restore_archive(self):
+        """Bring back the world from before the last NEW WORLD (swaps it with the current world)."""
+        def change(data):
+            w = data.get("world") or {}
+            if not w.get("archive"):
+                raise RuntimeError("There is no old world to bring back.")
+            data["world"] = {"current": w["archive"], "previous": w.get("previous"), "archive": w.get("current")}
+            data.pop("world_info", None)   # seed belongs to the other world now
+            data.pop("new_world", None)
+        self._edit_idle("Switching worlds", change)
+        self.log("Old world restored. The newer world is kept as the archive, so you can switch back.", "ok")
 
     def set_version(self, version):
         mcserver.version_info(version)  # validates
-        data, mtime, now = self.read_state()
-        if data.get("state") == "running" and now - mtime < config.STALE_SEC:
-            raise RuntimeError("Change the version only while nobody is hosting.")
-        data["mc_version"] = version
-        self.drive.write_json(self.group["state_id"], data)
+        self._edit_idle("Change the version", lambda d: d.__setitem__("mc_version", version))
         self.log(f"Group switched to Minecraft {version}. Everyone must play {version}.", "ok")
+
+    def set_world_settings(self, raw):
+        clean = mcserver.clean_world_settings(raw)
+        self._edit_idle("Change world settings", lambda d: d.__setitem__("world_settings", clean))
+        self.log("World settings saved. They apply the next time anyone hosts.", "ok")
+        return clean
+
+    def request_new_world(self, seed, level_type):
+        if level_type not in mcserver.LEVEL_TYPES:
+            raise RuntimeError("Unknown world type.")
+        nw = {"seed": " ".join(str(seed or "").split())[:64], "level_type": level_type, "requested_by": self.me}
+        self._edit_idle("Start a new world", lambda d: d.__setitem__("new_world", nw))
+        self.log(f"NEW WORLD queued (seed: {nw['seed'] or 'random'}, type: {level_type}). "
+                 "It is generated the next time anyone hosts.", "warn")
+
+    def cancel_new_world(self):
+        self._edit_idle("Cancel", lambda d: d.pop("new_world", None))
+        self.log("New world cancelled. The current world stays.", "ok")

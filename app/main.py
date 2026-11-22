@@ -79,7 +79,8 @@ class Api:
             folder = d.create_folder(f"BlockHost - {group_name}")
             state_id = d.create_json(folder, "state.json", {
                 "v": 1, "state": "idle", "gen": 0, "mc_version": version, "online_mode": bool(online_mode),
-                "motd": f"{group_name} world", "world": {"current": None, "previous": None}})
+                "world_settings": mcserver.clean_world_settings({"motd": f"{group_name} world"}),
+                "world": {"current": None, "previous": None}})
         except Exception as e:
             return {"ok": False, "error": str(e)}
         group = {"group_name": group_name, "client_id": client_id.strip(), "client_secret": client_secret.strip(),
@@ -149,9 +150,24 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def set_version(self, v):
+        return self._try(self._session.set_version, v.strip())
+
+    # ---------- world screen ----------
+    def set_world_settings(self, s):
+        return self._try(self._session.set_world_settings, s)
+
+    def request_new_world(self, seed, level_type):
+        return self._try(self._session.request_new_world, seed, level_type)
+
+    def cancel_new_world(self):
+        return self._try(self._session.cancel_new_world)
+
+    def restore_archive(self):
+        return self._try(self._session.restore_archive)
+
+    def _try(self, fn, *a):
         try:
-            self._session.set_version(v.strip())
-            return {"ok": True}
+            return {"ok": True, "result": fn(*a)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 

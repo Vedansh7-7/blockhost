@@ -104,6 +104,9 @@ function render(s) {
   show("btnRetry", phase === "saving");
   show("cmdForm", phase === "running");
   $("btnSettings").disabled = phase !== "idle";
+  if (s.new_world && phase === "idle" && s.state !== "running") {
+    $("stateSub").textContent += ` NEW WORLD queued (seed: ${s.new_world.seed || "random"}).`;
+  }
 }
 
 async function poll() {
@@ -222,14 +225,78 @@ $("sVerGo").onclick = async () => { const r = await api().set_version($("sVer").
 $("sRestore").onclick = async () => { const r = await api().restore_previous(); $("sErr").textContent = r.ok ? "Previous save restored." : r.error; poll(); };
 $("sFolder").onclick = () => api().open_folder();
 $("sLeave").onclick = async () => { const r = await api().leave_group(); if (r.ok) location.reload(); else $("sErr").textContent = r.error; };
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); $("settingsModal").hidden = true; } });
+/* ---------------- world screen ---------------- */
+const TYPE_NAMES = { normal: "Normal", large_biomes: "Large Biomes", amplified: "Amplified", flat: "Flat" };
+
+function fillWorld(s) {
+  const w = s.world_settings || {};
+  $("wDifficulty").value = w.difficulty || "easy";
+  $("wGamemode").value = w.gamemode || "survival";
+  $("wPvp").checked = !!w.pvp; $("wKeepInv").checked = !!w.keep_inventory; $("wHardcore").checked = !!w.hardcore;
+  $("wMotd").value = w.motd || ""; $("wMax").value = w.max_players ?? 20;
+  $("wSpawn").value = w.spawn_protection ?? 16; $("wView").value = w.view_distance ?? 10;
+  $("wWhitelist").checked = !!w.whitelist;
+  $("wSeed").textContent = s.seed || "unknown (host once to see it)";
+  const busy = s.state === "running" || phase !== "idle";
+  $("wLocked").hidden = !busy;
+  for (const id of ["wSave", "wNew", "wArchive"]) $(id).disabled = busy;
+  const nw = s.new_world;
+  $("wPending").hidden = !nw; $("wNewForm").hidden = !!nw;
+  if (nw) {
+    $("wPending").innerHTML = `NEW WORLD QUEUED: seed <b>${esc(nw.seed || "random")}</b>, type <b>${esc(TYPE_NAMES[nw.level_type] || nw.level_type)}</b>.<br>It is created the next time anyone hosts.<br>`;
+    const b = document.createElement("button"); b.className = "btn"; b.textContent = "CANCEL NEW WORLD"; b.disabled = busy;
+    b.onclick = async () => worldResult(await api().cancel_new_world(), "New world cancelled.");
+    $("wPending").appendChild(b);
+  }
+  $("wArchiveRow").hidden = !s.has_archive;
+}
+
+async function openWorld() {
+  $("wErr").textContent = "Loading...";
+  $("worldModal").hidden = false;
+  const s = await api().status();
+  if (s.error) { $("wErr").textContent = s.error; return; }
+  lastStatus = s; fillWorld(s); $("wErr").textContent = "";
+}
+
+async function worldResult(r, okText) {
+  $("wErr").textContent = r.ok ? okText : r.error;
+  if (r.ok) { const s = await api().status(); lastStatus = s; fillWorld(s); render(); }
+}
+
+$("btnWorld").onclick = openWorld;
+$("wClose").onclick = () => { $("worldModal").hidden = true; };
+$("wSave").onclick = async () => worldResult(await api().set_world_settings({
+  difficulty: $("wDifficulty").value, gamemode: $("wGamemode").value,
+  pvp: $("wPvp").checked, keep_inventory: $("wKeepInv").checked, hardcore: $("wHardcore").checked,
+  motd: $("wMotd").value, max_players: $("wMax").value, spawn_protection: $("wSpawn").value,
+  view_distance: $("wView").value, whitelist: $("wWhitelist").checked,
+}), "Saved. Applies the next time anyone hosts.");
+$("wNew").onclick = () => {
+  const seed = $("wNewSeed").value.trim(), type = $("wType").value;
+  $("worldModal").hidden = true;
+  modal("START A NEW WORLD?", `<p>The next host gets a fresh <b>${esc(TYPE_NAMES[type])}</b> world with seed <b>${esc(seed || "random")}</b>.</p>
+    <p class="hint">Your current world is kept as the OLD WORLD. WORLD &gt; SWITCH BACK TO OLD WORLD brings it back. Only one old world is kept: starting another new world later replaces it.</p>`,
+    [{ text: "CANCEL", do: () => { $("worldModal").hidden = false; } },
+     { text: "YES, NEW WORLD", cls: "btn-red", do: async () => { $("worldModal").hidden = false; worldResult(await api().request_new_world(seed, type), "New world queued."); } }]);
+};
+$("wArchive").onclick = () => {
+  $("worldModal").hidden = true;
+  modal("SWITCH WORLDS?", `<p>The OLD WORLD becomes the current world again. The world you have now is kept as the old world, so you can switch back any time.</p>`,
+    [{ text: "CANCEL", do: () => { $("worldModal").hidden = false; } },
+     { text: "SWITCH", cls: "btn-green", do: async () => { $("worldModal").hidden = false; worldResult(await api().restore_archive(), "Switched. The old world is back."); } }]);
+};
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeModal(); $("settingsModal").hidden = true; $("worldModal").hidden = true; }
+});
 
 /* ---------------- boot ---------------- */
 async function boot() {
   const b = await api().boot();
   if (!b.has_group) { $("setup").hidden = false; showSetup("setupPick"); return; }
   $("groupName").textContent = "/ " + b.group_name;
-  $("main").hidden = false; $("btnSettings").hidden = false;
+  $("main").hidden = false; $("btnSettings").hidden = false; $("btnWorld").hidden = false;
   line("BlockHost ready. Checking who is hosting...", "info");
   render(); poll();
   setInterval(() => { if (phase === "idle" || phase === "running") poll(); }, 20000);

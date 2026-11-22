@@ -197,6 +197,23 @@ before = state()["world"]
 C.restore_previous()
 check("restore previous swaps the two saves", state()["world"]["current"]["id"] == before["previous"]["id"])
 
+# ======================= world settings / new world (no server needed) =======================
+W = laptop("LAPTOP-W")
+clean = W.set_world_settings({"difficulty": "hard", "gamemode": "bogus", "max_players": "999",
+                              "motd": "line1\nline2", "pvp": False, "keep_inventory": True})
+check("settings validated (bad gamemode -> survival, max 100, one-line motd)",
+      clean["gamemode"] == "survival" and clean["max_players"] == 100 and clean["motd"] == "line1 line2")
+check("settings stored in Drive", state()["world_settings"]["difficulty"] == "hard")
+W.request_new_world("  blockhost  ", "flat")
+check("new world queued (seed trimmed)", state()["new_world"]["seed"] == "blockhost"
+      and state()["new_world"]["level_type"] == "flat")
+check("bad world type rejected", expect(RuntimeError, W.request_new_world, "x", "nether") is not None)
+W.cancel_new_world()
+check("new world cancelled", "new_world" not in state())
+W._claim(False)
+check("settings refused while someone hosts", expect(RuntimeError, laptop("LAPTOP-V").set_world_settings, {}) is not None)
+W._release()
+
 events.clear()
 laptop("LAPTOP-E").start({"ram_gb": 1, "autosave_min": 20, "eula": False})
 check("start without EULA asks for it and does not claim",
@@ -208,11 +225,12 @@ if "--e2e" in sys.argv:
     mcserver.firewall_rule_exists = lambda port: True
     _prep = mcserver.prepare_files
 
-    def prep_on_test_port(motd, online_mode):          # never collide with a real server on 25565
-        _prep(motd, online_mode)
+    def prep_on_test_port(*a, **k):                    # never collide with a real server on 25565
+        w = _prep(*a, **k)
         props = os.path.join(config.SERVER_DIR, "server.properties")
         lines = [l for l in open(props, encoding="utf-8").read().splitlines() if not l.startswith("server-port=")]
         open(props, "w", encoding="utf-8").write(chr(10).join(lines + ["server-port=25599"]) + chr(10))
+        return w
     mcserver.prepare_files = prep_on_test_port
     settings = {"ram_gb": 2, "autosave_min": 20, "eula": True}
 
@@ -246,6 +264,30 @@ if "--e2e" in sys.argv:
     names = [n.replace("\\", "/") for n in zipfile.ZipFile(blob + ".zip").namelist()]
     check("uploaded archive contains world/level.dat", "world/level.dat" in names)
     check("crash marker cleared", config.load_session() is None)
+    check("game rules applied live (pvp off, keep_inventory on)",
+          any("pvp is now set to false" in str(d.get("line")) for k, d in events if k == "console") and
+          any("keep_inventory is now set to true" in str(d.get("line")) for k, d in events if k == "console"))
+    first_seed = state().get("world_info", {}).get("seed")
+    check(f"seed captured ({first_seed})", bool(first_seed) and first_seed.lstrip("-").isdigit())
+
+    # ---- NEW WORLD with a chosen seed and type ----
+    old_world = state()["world"]["current"]
+    E.request_new_world("blockhost", "flat")
+    E = laptop("LAPTOP-E")
+    E.start(settings)
+    props = open(os.path.join(config.SERVER_DIR, "server.properties"), encoding="utf-8").read()
+    check("new world: flat type + seed written", "level-type=minecraft" in props and ":flat" in props
+          and "level-seed=blockhost" in props)
+    new_seed = E.model.get("world_info", {}).get("seed")
+    check(f"new world has a different seed ({new_seed})", bool(new_seed) and new_seed.lstrip("-").isdigit()
+          and new_seed != first_seed)
+    E.stop()
+    w = state()["world"]
+    check("old world kept as archive, new_world cleared", w["archive"]["id"] == old_world["id"]
+          and w["previous"] is None and "new_world" not in state())
+    E.restore_archive()
+    check("switch back: old world is current again, new one archived",
+          state()["world"]["current"]["id"] == old_world["id"] and state()["world"]["archive"]["id"] == w["current"]["id"])
 
 shutil.rmtree(SCRATCH, ignore_errors=True)
 print("\n" + ("ALL PASSED" if not failures else f"{len(failures)} FAILED: {failures}"))

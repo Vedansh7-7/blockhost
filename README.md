@@ -49,6 +49,7 @@ Copying the world folder around by hand works until two people play different co
 - 💓 Heartbeat and stale-host takeover
 - 🔐 AES-256-GCM encrypted world, plus a password-sealed group file
 - 🗂️ Only 2 saves kept (current + previous), so Drive storage doesn't fill up, and a one-click restore of the previous save
+- 🌍 WORLD screen: seed and world type for new worlds, difficulty, game mode, PvP, keep inventory, whitelist and more, shared by the whole group
 - 🧱 Downloads the official server `.jar` from Mojang and checks its hash
 - ☕ Offers to install Java if it's missing
 - 🛡️ Safe close: the window's X and QUIT both save before exiting. If the launcher crashes, the server is stopped too.

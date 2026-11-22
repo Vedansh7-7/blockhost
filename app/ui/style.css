@@ -168,6 +168,17 @@ dd { margin: 0; }
 /* ---------- modals ---------- */
 .modal-back { position: fixed; inset: 0; background: rgba(10, 6, 3, .78); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
 .modal { width: min(560px, 100%); max-height: 90vh; overflow: auto; }
+.modal-wide { width: min(680px, 100%); }
+.modal h3 { font-family: "Pixel", monospace; font-size: 10px; color: var(--ink-dim); margin: 18px 0 10px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 14px; }
+select {
+  display: block; width: 100%; margin-top: 4px;
+  font: 22px "Term", monospace; color: var(--ink);
+  background: var(--console); border: var(--px) solid #000; padding: 5px 6px; outline: none;
+}
+select:focus { border-color: var(--gold-400); }
+.pending { background: var(--console); border: var(--px) solid var(--gold-400); padding: 10px 12px; margin-bottom: 10px; color: var(--gold-400); }
+.pending .btn { margin-top: 10px; }
 
 ::-webkit-scrollbar { width: 14px; }
 ::-webkit-scrollbar-track { background: var(--console); }

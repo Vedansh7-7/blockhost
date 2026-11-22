@@ -83,13 +83,56 @@ def ensure_jar(version, log):
     return java_major
 
 
-def prepare_files(motd, online_mode):
+NL, BACKSLASH = chr(10), chr(92)
+
+LEVEL_TYPES = {"normal": "minecraft:normal", "flat": "minecraft:flat",
+               "amplified": "minecraft:amplified", "large_biomes": "minecraft:large_biomes"}
+DIFFICULTIES = ("peaceful", "easy", "normal", "hard")
+GAMEMODES = ("survival", "creative", "adventure", "spectator")
+WORLD_DEFAULTS = {"difficulty": "easy", "gamemode": "survival", "hardcore": False, "pvp": True,
+                  "keep_inventory": False, "max_players": 20, "spawn_protection": 16,
+                  "view_distance": 10, "motd": "BlockHost world", "whitelist": False}
+
+
+def clean_world_settings(raw):
+    """Validates settings coming from the UI or Drive; anything odd falls back to a safe default."""
+    raw = raw or {}
+    d = dict(WORLD_DEFAULTS)
+    if raw.get("difficulty") in DIFFICULTIES:
+        d["difficulty"] = raw["difficulty"]
+    if raw.get("gamemode") in GAMEMODES:
+        d["gamemode"] = raw["gamemode"]
+    for b in ("hardcore", "pvp", "keep_inventory", "whitelist"):
+        if b in raw:
+            d[b] = bool(raw[b])
+    for k, lo, hi in (("max_players", 1, 100), ("spawn_protection", 0, 64), ("view_distance", 3, 32)):
+        try:
+            d[k] = max(lo, min(hi, int(raw.get(k, d[k]))))
+        except (TypeError, ValueError):
+            pass
+    motd = " ".join(str(raw.get("motd") or d["motd"]).split())  # no newlines / control whitespace
+    d["motd"] = motd[:59] or WORLD_DEFAULTS["motd"]
+    return d
+
+
+def prepare_files(online_mode, world=None, new_world=None):
+    """Writes eula.txt and server.properties from the group's settings.
+    new_world = {"seed": str, "level_type": key of LEVEL_TYPES} only when generating a fresh world."""
     with open(os.path.join(config.SERVER_DIR, "eula.txt"), "w") as f:
-        f.write("eula=true\n")
-    props = os.path.join(config.SERVER_DIR, "server.properties")
+        f.write("eula=true" + NL)
+    w = clean_world_settings(world)
     flag = "true" if online_mode else "false"
-    want = {"online-mode": flag, "enforce-secure-profile": flag}
-    lines = open(props, encoding="utf-8").read().splitlines() if os.path.exists(props) else [f"motd={motd}"]
+    want = {
+        "online-mode": flag, "enforce-secure-profile": flag,
+        "difficulty": w["difficulty"], "gamemode": w["gamemode"], "hardcore": str(w["hardcore"]).lower(),
+        "max-players": str(w["max_players"]), "spawn-protection": str(w["spawn_protection"]),
+        "view-distance": str(w["view_distance"]), "motd": w["motd"], "white-list": str(w["whitelist"]).lower(),
+    }
+    if new_world is not None:
+        want["level-seed"] = str(new_world.get("seed") or "").strip()[:64]
+        want["level-type"] = LEVEL_TYPES.get(new_world.get("level_type"), "minecraft:normal").replace(":", BACKSLASH + ":")
+    props = os.path.join(config.SERVER_DIR, "server.properties")
+    lines = open(props, encoding="utf-8").read().splitlines() if os.path.exists(props) else []
     keys = set()
     for i, line in enumerate(lines):
         k = line.split("=", 1)[0]
@@ -98,7 +141,16 @@ def prepare_files(motd, online_mode):
         keys.add(k)
     lines += [f"{k}={v}" for k, v in want.items() if k not in keys]
     with open(props, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+        f.write(NL.join(lines) + NL)
+    return w
+
+
+def live_commands(world):
+    """Rules that live inside the world, re-applied after every start so the group setting wins."""
+    w = clean_world_settings(world)
+    return [f"difficulty {w['difficulty']}", f"defaultgamemode {w['gamemode']}",
+            f"gamerule pvp {str(w['pvp']).lower()}",
+            f"gamerule keep_inventory {str(w['keep_inventory']).lower()}"]
 
 
 def server_port():
@@ -181,7 +233,8 @@ class Server:
                 self.players.discard(m.group(1))
             with self._wlock:
                 for rx, ev in self._waiters:
-                    if re.search(rx, line):
+                    if not ev.is_set() and re.search(rx, line):
+                        ev.line = line
                         ev.set()
             self.on_line(line)
 
@@ -212,11 +265,12 @@ class Server:
 
     def send_and_wait(self, cmd, regex, timeout=60):
         ev = threading.Event()
+        ev.line = None
         with self._wlock:
             self._waiters.append((regex, ev))
         try:
             self.send(cmd)
-            return ev.wait(timeout)
+            return ev.line if ev.wait(timeout) else None
         finally:
             with self._wlock:
                 self._waiters.remove((regex, ev))
